@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #13261c;
+  color: #f5f0e0;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Hide scrollbars on the tile picker while keeping scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Felt-table texture: subtle radial highlight */
+.felt-bg {
+  background:
+    radial-gradient(120% 80% at 50% -10%, #2d6044 0%, #1a3a2a 45%, #13261c 100%);
+}

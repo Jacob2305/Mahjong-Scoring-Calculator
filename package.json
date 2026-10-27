@@ -1,0 +1,27 @@
+{
+  "name": "mahjong-calculator",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:host": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "preview:host": "vite preview --host",
+    "test": "node test/run.mjs && node test/scan-validate.mjs",
+    "eval:scan": "node --env-file-if-exists=.env scripts/eval-scan.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "sharp": "^0.35.5",
+    "tailwindcss": "^3.4.13",
+    "vite": "^5.4.8"
+  }
+}
