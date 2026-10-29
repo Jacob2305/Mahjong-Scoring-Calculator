@@ -139,6 +139,24 @@ const ids = (r) => r.fans.map((f) => f.id)
   check('self-draw is not a melded hand', !ids(s).includes('meldedHand'))
 }
 
+// Fan table fixes: official values and the fans that were missing.
+{
+  const fan = (r, id) => r.fans.find((f) => f.id === id)
+  const dragons = scoreHand({ concealed: ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'dr', 'dr', 'dr', 'dg', 'dg', 'dg', 'm9', 'm9'], ctx: { winType: 'selfdraw' } })
+  check('Two Concealed Pungs is worth 2', fan(dragons, 'twoConcealedPungs')?.total === 2, JSON.stringify(fan(dragons, 'twoConcealedPungs')))
+  const simples = scoreHand({ concealed: ['m2', 'm3', 'm4', 's3', 's4', 's5', 'p4', 'p5', 'p6', 'p6', 'p7', 'p8', 's8', 's8'], ctx: { winType: 'discard' } })
+  check('All Simples 2', fan(simples, 'allSimples')?.total === 2, ids(simples).join(','))
+  check('All Simples replaces No Honors', !fan(simples, 'noHonors'))
+  const withTerminal = scoreHand({ concealed: ['m1', 'm2', 'm3', 's3', 's4', 's5', 'p4', 'p5', 'p6', 'p6', 'p7', 'p8', 's8', 's8'], ctx: { winType: 'discard' } })
+  check('a 1 means no All Simples', !fan(withTerminal, 'allSimples'))
+  const oneKong = scoreHand({ concealed: ['s5', 's5', 's5', 's5', 'm2', 'm3', 'm4', 'p6', 'p7', 'p8', 'dr', 'dr', 'dr', 'p2', 'p2'], ctx: { winType: 'discard' } })
+  check('Concealed Kong 2', fan(oneKong, 'concealedKong')?.total === 2, ids(oneKong).join(','))
+  const twoKongs = scoreHand({ concealed: ['m2', 'm3', 'm4', 'p6', 'p7', 'p8', 'p2', 'p2'], melded: ['s5', 's5', 's5', 's5', 'dr', 'dr', 'dr', 'dr'], ctx: { winType: 'discard' } })
+  const twoConcKongs = scoreHand({ concealed: ['s5', 's5', 's5', 's5', 'dr', 'dr', 'dr', 'dr', 'm2', 'm3', 'm4', 'p6', 'p7', 'p8', 'p2', 'p2'], ctx: { winType: 'discard' } })
+  check('Two Concealed Kongs 8', fan(twoConcKongs, 'twoConcealedKongs')?.total === 8 && !fan(twoConcKongs, 'concealedKong'), ids(twoConcKongs).join(','))
+  check('Two Melded Kongs 4 (instead of 2× Melded Kong)', fan(twoKongs, 'twoMeldedKongs')?.total === 4 && !fan(twoKongs, 'meldedKong'), ids(twoKongs).join(','))
+}
+
 // Set brackets on the home screen.
 {
   const show = (ids) => groupSets(ids).map((u) => u.map((i) => ids[i]).join(' ')).join(' | ')

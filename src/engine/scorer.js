@@ -203,6 +203,7 @@ function flatCompositionFans(tiles) {
     if (within(7, 9)) out.push('upperTiles'); else if (within(6, 9)) out.push('upperFour')
     if (within(1, 3)) out.push('lowerTiles'); else if (within(1, 4)) out.push('lowerFour')
     if (within(4, 6)) out.push('middleTiles')
+    if (within(2, 8)) out.push('allSimples')
   }
   return out
 }

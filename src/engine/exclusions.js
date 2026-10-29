@@ -25,8 +25,8 @@ export const EXCLUSIONS = {
   fourConcealedPungs: ['threeConcealedPungs', 'twoConcealedPungs', 'allPungs'],
   threeConcealedPungs: ['twoConcealedPungs'],
 
-  fourKongs: ['threeKongs', 'twoConcealedKongs', 'meldedKong', 'allPungs'],
-  threeKongs: ['twoConcealedKongs'],
+  fourKongs: ['threeKongs', 'twoConcealedKongs', 'twoMeldedKongs', 'meldedKong', 'allPungs'],
+  threeKongs: ['twoConcealedKongs', 'twoMeldedKongs'],
 
   fullFlush: ['halfFlush', 'oneVoidedSuit', 'noHonors'],
   nineGates: ['fullFlush', 'concealedHand', 'noHonors', 'oneVoidedSuit', 'pungTerminalsHonors'],
@@ -43,11 +43,13 @@ export const EXCLUSIONS = {
 
   upperTiles: ['upperFour', 'noHonors'],
   lowerTiles: ['lowerFour', 'noHonors'],
-  middleTiles: ['noHonors'],
+  middleTiles: ['noHonors', 'allSimples'],
+  allSimples: ['noHonors'],
+  allFives: ['allSimples', 'noHonors'],
   upperFour: ['noHonors'],
   lowerFour: ['noHonors'],
 
-  allEvenPungs: ['allPungs'],
+  allEvenPungs: ['allPungs', 'allSimples'],
 
   sevenPairs: ['concealedHand'],
   sevenShiftedPairs: ['sevenPairs', 'fullFlush', 'oneVoidedSuit', 'noHonors', 'concealedHand'],

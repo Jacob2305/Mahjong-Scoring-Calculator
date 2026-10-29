@@ -79,7 +79,9 @@ export const FANS = {
   // 4
   outsideHand: ['Outside Hand', '全带幺', 4, 'Every set and the pair contains a terminal or honor.'],
   fullyConcealed: ['Fully Concealed Hand', '不求人', 4, 'Self-drawn win with a fully concealed hand.'],
-  twoConcealedPungs: ['Two Concealed Pungs', '双暗刻', 4, 'Two concealed pungs/kongs.'],
+  twoConcealedPungs: ['Two Concealed Pungs', '双暗刻', 2, 'Two concealed pungs/kongs.'],
+  concealedKong: ['Concealed Kong', '暗杠', 2, 'A concealed kong.'],
+  allSimples: ['All Simples', '断幺', 2, 'No terminals (1s and 9s) or honors.'],
   // 2
   dragonPung: ['Dragon Pung', '箭刻', 2, 'A pung/kong of any dragon.'],
   prevalentWind: ['Prevalent Wind', '圈风刻', 2, 'A pung/kong of the prevalent (round) wind.'],
@@ -88,7 +90,8 @@ export const FANS = {
   allChows: ['All Chows', '平和', 2, 'Four chows and a non-honor pair.'],
   tileHog: ['Tile Hog', '四归一', 2, 'All four of a tile used without forming a kong.'],
   doublePung: ['Double Pung', '双同刻', 2, 'Two pungs of the same number in two suits.'],
-  twoConcealedKongs: ['Two Concealed Kongs', '双暗杠', 2, 'Two concealed kongs.'],
+  twoConcealedKongs: ['Two Concealed Kongs', '双暗杠', 8, 'Two concealed kongs.'],
+  twoMeldedKongs: ['Two Melded Kongs', '双明杠', 4, 'Two exposed kongs.'],
   // 1
   pureDoubleChow: ['Pure Double Chow', '一般高', 1, 'Two identical chows in one suit.'],
   mixedDoubleChow: ['Mixed Double Chow', '喜相逢', 1, 'The same chow in two different suits.'],
@@ -190,9 +193,12 @@ export function detectStandardFans(parsing, ctx) {
   // ---- kongs --------------------------------------------------------------
   if (kongs.length === 4) add('fourKongs')
   else if (kongs.length === 3) add('threeKongs')
-  const concealedKongs = kongs.filter((k) => k.concealed)
-  if (concealedKongs.length >= 2) add('twoConcealedKongs')
-  for (const k of kongs) if (!k.concealed) add('meldedKong')
+  const concealedKongs = kongs.filter((k) => k.concealed).length
+  const meldedKongs = kongs.length - concealedKongs
+  if (concealedKongs >= 2) add('twoConcealedKongs')
+  else if (concealedKongs === 1) add('concealedKong')
+  if (meldedKongs >= 2) add('twoMeldedKongs')
+  else if (meldedKongs === 1) add('meldedKong')
 
   // Melded Hand: all four sets exposed, won on the pair by discard
   if (sets.length === 4 && sets.every((s) => !s.concealed) && ctx.winType === 'discard') add('meldedHand')
@@ -256,6 +262,7 @@ function addCompositionFans(out, allTiles, sets, pair) {
     if (within(1, 3)) add('lowerTiles')
     else if (within(1, 4)) add('lowerFour')
     if (within(4, 6)) add('middleTiles')
+    if (within(2, 8)) add('allSimples')
     // All Terminals: every tile a terminal
     if (allTiles.every((t) => isTerminal(t))) add('allTerminals')
   }
