@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import FanCard from './FanCard.jsx'
 import Tile from './Tile.jsx'
 import { tileSortKey, tileName } from '../engine/tiles.js'
+import { FALSE_WIN_PENALTY } from '../engine/scorer.js'
 
 export default function ResultsScreen({ result, concealed = [], melded = [], onBack }) {
   const score = useCountUp(result.total)
@@ -33,10 +34,15 @@ export default function ResultsScreen({ result, concealed = [], melded = [], onB
               </span>
             ) : (
               <span className="rounded-full bg-rose-700/90 px-3 py-1 text-sm font-semibold text-white">
-                ✗ Invalid · needs ≥ 8 fan
+                ✗ Under 8 fan · false win
               </span>
             )}
           </div>
+          {!result.valid && (
+            <div className="mt-3 rounded-lg bg-rose-900/40 border border-rose-700/60 px-3 py-2 text-sm text-rose-100">
+              Pay <b>{FALSE_WIN_PENALTY.underEight}</b> to each other player ({FALSE_WIN_PENALTY.underEight * 3} total).
+            </div>
+          )}
           <div className="mt-3 text-xs text-ivory/60">
             {result.fanTotal} fan{result.flowerPts ? ` + ${result.flowerPts} flower` : ''} ·{' '}
             {result.ctx.winType === 'selfdraw' ? 'Self-draw' : 'By discard'}

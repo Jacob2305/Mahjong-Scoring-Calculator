@@ -14,22 +14,39 @@ npm test         # engine unit checks (node --test style script)
 
 ## Build & deploy
 
-```bash
-npm run build
-```
+`dist/` is build output and isn't committed.
 
-The static site lands in `dist/`. **Drag the `dist/` folder onto
-[netlify.com/drop](https://app.netlify.com/drop)** for a shareable link. No
-account and no server are needed.
+- **Netlify from GitHub (recommended):** connect the repo in Netlify. `netlify.toml`
+  tells it to run `npm run build` and publish `dist/`, so every push redeploys.
+  Optionally add `VITE_GEMINI_API_KEY` under Site settings → Environment variables
+  for the Gemini backup.
+- **Netlify Drop:** run `npm run build` and drag the `dist/` folder onto
+  [app.netlify.com/drop](https://app.netlify.com/drop).
 
-## Scan hand (proof of concept) — free
+## Scan hand — free, on-device
 
-The **📷 Scan** button takes a photo (rear camera on phones) or an upload. The
-phone shrinks the image and sends it straight to Google's Gemini (free tier),
-which lists every tile. A review screen flags unsure tiles, and you tap each one
-to confirm or correct it. Then the tiles replace the hand: all go into Concealed,
-and flowers/seasons go into a Flowers row. Concealed/melded detection isn't
-built yet.
+The **📷 Scan** button takes a photo (rear camera on phones) or an upload. A small
+tile-detection model (YOLO11n, `public/models/mahjong-tiles.onnx`, ~10 MB) runs
+**on the phone itself** with onnxruntime-web: no key, no server, no rate limits, and
+it works offline once loaded. The model and runtime (~25 MB) download the first time
+someone opens Scan, then the browser caches them. A scan takes 1–2 seconds.
+
+The model returns a box and a confidence for every tile. `src/scan/detect.js` turns
+those into the review screen's tiles: below 75% confidence a tile is flagged for you
+to check, and the largest clear gap in the photo splits concealed (left/top) from
+revealed (right/bottom). Then the tiles replace the hand.
+
+- Model code: `src/scan/localScan.js` (browser) and `src/scan/detect.js` (tested by `test/scan-detect.mjs`)
+- Retraining: label more photos in Roboflow, train in Colab (Ultralytics YOLO,
+  `fliplr=0`), export to ONNX at 640, and replace `public/models/mahjong-tiles.onnx`.
+  If the class list changes, update `MODEL_CLASSES` in `detect.js`.
+- Training data: [Mahjong dataset by Jon Chan](https://universe.roboflow.com/) on
+  Roboflow Universe, CC BY 4.0.
+
+### Gemini backup (optional)
+
+If the on-device model can't load on a device, the app falls back to Google's Gemini
+(free tier) when a key is set. Everything below is only needed for that backup.
 
 ### One-time setup (free, no card)
 

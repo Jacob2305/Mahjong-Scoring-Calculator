@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { recognizeHand, RecognitionError, TILE_IDS, MODELS } from '../src/scan/recognize.js'
+import { recognizeHand, RecognitionError, TILE_IDS, MODELS, summarizeLog } from '../src/scan/recognize.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCAN_DIR = path.join(ROOT, 'test/scan')
@@ -93,9 +93,10 @@ async function runOne(label) {
     for (let round = 0; ; round++) {
       try {
         const r = await recognizeHand({ apiKey, imageBase64, refs, models })
-        return { ...label, pred: r.tiles, issues: r.issues, visibleTileCount: r.visibleTileCount, ms: r.ms, model: r.model, attempts: r.attempts }
+        return { ...label, pred: r.tiles, issues: r.issues, visibleTileCount: r.visibleTileCount, ms: r.ms, model: r.model, attempts: r.attempts, log: r.log }
       } catch (err) {
         // Every model busy or rate-limited: give the free tier a breather, then go again.
+        if (err.log) console.log(`  ${label.file}: ${summarizeLog(err.log)}`)
         if (!(err instanceof RecognitionError && err.kind === 'busy') || round >= 2) throw err
         console.log(`  all models busy, waiting ${30 * (round + 1)}s...`)
         await wait(30000 * (round + 1))
@@ -212,6 +213,7 @@ for (const r of runs) {
   if (r.error) { console.log(`  ERROR  ${r.file}: ${r.error}`); continue }
   const tag = r.errors.length ? `${r.errors.length} err` : 'exact'
   console.log(`  ${tag.padEnd(6)} ${r.file}  truth ${r.tiles.length} / found ${r.pred.length}  ${(r.ms / 1000).toFixed(1)}s  ${r.model}${r.attempts > 1 ? ` (${r.attempts} tries)` : ''}`)
+  if (r.attempts > 1) console.log(`           attempts: ${summarizeLog(r.log)}`)
   for (const [a, b] of r.errors) console.log(`           ${a} → ${b}`)
   if (r.zoneOk === false) {
     const got = r.pred.filter((t) => t.zone === 'revealed').map((t) => t.id)

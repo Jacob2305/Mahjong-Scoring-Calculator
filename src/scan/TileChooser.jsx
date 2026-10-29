@@ -6,7 +6,7 @@ const BONUS = ['f1', 'f2', 'f3', 'f4', 'y1', 'y2', 'y3', 'y4']
 
 // Bottom sheet to correct one scanned tile (or add a missing one).
 // `item` is null when adding.
-export default function TileChooser({ item, counts, onPick, onConfirm, onRemove, onMove, moveLabel, onClose }) {
+export default function TileChooser({ item, counts, onPick, onRemove, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={onClose}>
       <div
@@ -36,27 +36,13 @@ export default function TileChooser({ item, counts, onPick, onConfirm, onRemove,
         )}
 
         {item && (
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <button
-              disabled={item.id === 'unknown'}
-              onClick={onConfirm}
-              className="rounded-xl py-2.5 font-semibold bg-emerald-600 text-white disabled:opacity-30"
-            >
-              ✓ That's right
-            </button>
-            <button onClick={onRemove} className="rounded-xl py-2.5 font-semibold bg-red-800/80 text-ivory">
-              Remove
-            </button>
-            {moveLabel && (
-              <button onClick={onMove} className="col-span-2 rounded-xl py-2.5 font-semibold bg-felt-700 text-ivory/80">
-                ⇄ {moveLabel}
-              </button>
-            )}
-          </div>
+          <button onClick={onRemove} className="mb-4 w-full rounded-xl py-2.5 font-semibold bg-red-800/80 text-ivory">
+            Remove this tile
+          </button>
         )}
 
         <div className="text-sm uppercase tracking-wide mb-2 text-gold/80">
-          {item ? 'Or tap the correct tile' : 'Tap the tile to add'}
+          {item ? 'Change it to' : 'Tap the tile to add'}
         </div>
         <TilePicker counts={counts} onAdd={onPick} picking />
         <div className="mt-3">

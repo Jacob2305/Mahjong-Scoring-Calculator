@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Tile from '../components/Tile.jsx'
 import TileChooser from './TileChooser.jsx'
-import { validateScan, validateRevealed, isSet } from './validate.js'
+import { validateScan, validateRevealed, isSet, bestCaseFan } from './validate.js'
 import { WinningTileStep, WinDetailsStep } from './WinSteps.jsx'
 import { isFlower } from '../engine/tiles.js'
-import { scoreHand } from '../engine/scorer.js'
+import { scoreHand, FALSE_WIN_PENALTY } from '../engine/scorer.js'
 
 const STEP_TITLE = { tiles: 'Check the scan', winning: 'Winning tile', details: 'How did you win?' }
 
@@ -59,8 +59,8 @@ function unitsOf(items, zone) {
 
 // Three steps after a scan:
 //   1. tiles   — what the scanner found, split into concealed and revealed.
-//                Every medium/low/unknown tile must be tapped and confirmed or
-//                corrected. Tiles (with their set) can be dragged between boxes.
+//                Tap a tile to change or remove it; drag a tile (with its set)
+//                to the other box. Unsure tiles are marked but don't block Next.
 //   2. winning — tap the tile you won on.
 //   3. details — self-draw vs discard, special wins, winds (only if relevant).
 // Then onCommit({ concealed, melded, flowers, ctx }) and straight to the score.
@@ -73,8 +73,10 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
   useEffect(() => { scroller.current?.scrollTo(0, 0) }, [step])
   const [editing, setEditing] = useState(null) // item key, { add: zone }, or null
   const [showPhoto, setShowPhoto] = useState(false)
+  const [verdict, setVerdict] = useState(null) // false-win warning on the tiles page
   const [drag, setDrag] = useState(null) // { keys, ids, from, x, y, over }
   const press = useRef(null)
+  const justDragged = useRef(false) // swallow the click that follows a drag
   const zoneRefs = { concealed: useRef(null), revealed: useRef(null) }
 
   const ids = items.map((it) => it.id)
@@ -90,7 +92,7 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
     for (const id of ids) if (id !== 'unknown') c[id] = (c[id] || 0) + 1
     return c
   }, [items])
-  const tilesDone = items.length > 0 && pending === 0 && errors.length === 0
+  const tilesDone = items.length > 0 && errors.length === 0
 
   // The winning tile can be picked from either box (null if it was removed
   // since). The set it completes is never a meld in MCR, and the engine
@@ -112,6 +114,15 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
   )
   const canScore = !!(win.winType && result?.complete)
 
+  // Catch a false win before asking how they won.
+  function tilesNext() {
+    const ids = (list) => list.map((it) => it.id)
+    const best = bestCaseFan(ids(units.concealed.flat()), units.revealed.map(ids), ids(flowers))
+    if (best === null) setVerdict({ kind: 'notWinning' })
+    else if (best < 8) setVerdict({ kind: 'underEight', fan: best })
+    else setStep('winning')
+  }
+
   const current = typeof editing === 'number' ? items.find((it) => it.key === editing) : null
   const update = (key, patch) => setItems((arr) => arr.map((it) => (it.key === key ? { ...it, ...patch } : it)))
 
@@ -121,10 +132,6 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
       ...arr.filter((it) => !keys.includes(it.key)),
       ...arr.filter((it) => keys.includes(it.key)).map((it) => ({ ...it, zone })),
     ])
-  }
-  const unitKeysOf = (key) => {
-    for (const z of ZONES) for (const u of units[z]) if (u.some((it) => it.key === key)) return u.map((it) => it.key)
-    return [key]
   }
 
   function pick(id) {
@@ -160,12 +167,19 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
     const p = press.current
     press.current = null
     if (!p) return
-    if (!p.dragging) { setEditing(p.tapKey); return } // a tap, not a drag
+    // A tap is handled by onClick, which fires after the finger lifts. Opening
+    // the sheet here would let that same tap land on a button inside it.
+    justDragged.current = p.dragging
+    if (!p.dragging) return
     setDrag(null)
     const over = zoneAt(e.clientX, e.clientY)
     if (over && over !== p.from) moveUnit(p.keys, over)
   }
   function onPointerCancel() { press.current = null; setDrag(null) }
+  function onTileClick(key) {
+    if (justDragged.current) { justDragged.current = false; return }
+    setEditing(key)
+  }
 
   const tileFace = (it, size = 'md') =>
     it.id === 'unknown'
@@ -198,7 +212,14 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
             <WinDetailsStep win={win} onChange={setWin} allIds={[...hand.concealed, ...hand.melded]} winningTile={winItem.id} />
             {win.winType && result && !result.complete && (
               <div className="mt-4 rounded-lg bg-red-900/50 border border-red-700 px-3 py-2 text-sm text-red-100">
-                ⛔ These tiles don't make a winning hand. Go back and check the tiles and which side they're on.
+                ⛔ These tiles don't make a winning hand. Declaring it is a false win: pay {FALSE_WIN_PENALTY.notWinning} to
+                each other player. Go back and check the tiles and which side they're on.
+              </div>
+            )}
+            {win.winType && result?.complete && !result.valid && (
+              <div className="mt-4 rounded-lg bg-amber-900/40 border border-amber-700/70 px-3 py-2 text-sm text-amber-100">
+                ⚠ Only {result.fanTotal} fan, under the 8-fan minimum. Declaring it is a false win: pay{' '}
+                {FALSE_WIN_PENALTY.underEight} to each other player.
               </div>
             )}
           </>
@@ -217,10 +238,10 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
         </button>
 
         <p className="mt-3 text-sm text-ivory/70">
-          {items.length} tiles found. Tap any tile to fix it. Drag tiles on the wrong side to the
-          other box; sets move together.
+          {items.length} tiles found. Tap a tile to change or remove it. Drag tiles to move them
+          between boxes; sets move together.
           {pending > 0 && (
-            <span className="text-amber-300"> {pending} flagged tile{pending > 1 ? 's' : ''} need checking.</span>
+            <span className="text-amber-300"> <b>?</b> marks {pending} tile{pending > 1 ? 's' : ''} the scanner wasn't sure about.</span>
           )}
         </p>
         <p className="mt-1.5 text-xs text-ivory/50">
@@ -262,6 +283,7 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
                             onPointerMove={onPointerMove}
                             onPointerUp={onPointerUp}
                             onPointerCancel={onPointerCancel}
+                            onClick={() => onTileClick(it.key)}
                           >
                             {tileFace(it)}
                             {badge(it)}
@@ -316,10 +338,8 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
           {step === 'tiles' ? (
             <>
               <button onClick={onRetake} className="rounded-xl px-4 py-3.5 font-semibold bg-felt-700 text-ivory/80">Retake</button>
-              <PrimaryButton enabled={tilesDone} onClick={() => setStep('winning')}>
-                {pending > 0
-                  ? `Check ${pending} flagged tile${pending > 1 ? 's' : ''}`
-                  : errors.length ? 'Fix errors above' : 'Next'}
+              <PrimaryButton enabled={tilesDone} onClick={tilesNext}>
+                {errors.length ? 'Fix errors above' : 'Next'}
               </PrimaryButton>
             </>
           ) : (
@@ -352,19 +372,59 @@ export default function ScanReview({ photoUrl, initialItems, issues, ctx, onComm
         </div>
       )}
 
+      {verdict && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={() => setVerdict(null)}>
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-felt-800 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {verdict.kind === 'notWinning' ? (
+              <>
+                <h3 className="font-bold text-lg text-red-200">⛔ Not a winning hand</h3>
+                <p className="mt-2 text-sm text-ivory/75">
+                  These tiles don't make a complete hand (four sets and a pair, or a special hand).
+                </p>
+                <p className="mt-2 rounded-lg bg-red-900/50 border border-red-700 px-3 py-2 text-sm text-red-100">
+                  False win: pay <b>{FALSE_WIN_PENALTY.notWinning}</b> to each other player
+                  ({FALSE_WIN_PENALTY.notWinning * 3} total).
+                </p>
+                <p className="mt-2 text-xs text-ivory/50">If the scan got a tile wrong or missed one, fix it and try again.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="font-bold text-lg text-amber-200">⚠ Under 8 fan</h3>
+                <p className="mt-2 text-sm text-ivory/75">
+                  Even in the best case this hand scores <b>{verdict.fan} fan</b>, below the 8-fan minimum.
+                </p>
+                <p className="mt-2 rounded-lg bg-amber-900/40 border border-amber-700/70 px-3 py-2 text-sm text-amber-100">
+                  False win: pay <b>{FALSE_WIN_PENALTY.underEight}</b> to each other player
+                  ({FALSE_WIN_PENALTY.underEight * 3} total).
+                </p>
+                <p className="mt-2 text-xs text-ivory/50">
+                  Only a special win (last tile, kong replacement tile, robbing a kong) could add enough.
+                </p>
+              </>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => setVerdict(null)} className="flex-1 rounded-xl py-3 font-semibold bg-felt-700 text-ivory/80">
+                Fix the tiles
+              </button>
+              {verdict.kind === 'underEight' && (
+                <button
+                  onClick={() => { setVerdict(null); setStep('winning') }}
+                  className="flex-1 rounded-xl py-3 font-semibold bg-felt-700 text-ivory/80"
+                >Continue anyway</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {editing !== null && (
         <TileChooser
           item={current}
           counts={counts}
           onPick={pick}
-          moveLabel={current && !isFlower(current.id)
-            ? `Move${unitKeysOf(current.key).length > 1 ? ' set' : ''} to ${current.zone === 'revealed' ? 'Concealed' : 'Revealed'}`
-            : null}
-          onMove={() => {
-            moveUnit(unitKeysOf(current.key), current.zone === 'revealed' ? 'concealed' : 'revealed')
-            setEditing(null)
-          }}
-          onConfirm={() => { update(editing, { ok: true }); setEditing(null) }}
           onRemove={() => { setItems((arr) => arr.filter((it) => it.key !== editing)); setEditing(null) }}
           onClose={() => setEditing(null)}
         />

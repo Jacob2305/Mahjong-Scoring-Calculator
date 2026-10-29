@@ -1,4 +1,5 @@
 import { isFlower, isSuited, tileName } from '../engine/tiles.js'
+import { scoreHand } from '../engine/scorer.js'
 
 // A standard set: pung (3 same), kong (4 same) or chow (3 in a row, one suit).
 export function isSet(ids) {
@@ -42,4 +43,39 @@ export function validateScan(ids) {
   }
 
   return { errors, warnings }
+}
+
+// Can these tiles win, and for how much at best? Checked before asking how the
+// player won, so a false win is caught on the tiles page.
+// concealed: tile ids; revealedSets: arrays of tile ids. Returns null if the
+// tiles aren't a winning hand at all, else the highest fan (excluding flowers)
+// over every ordinary way of winning: self-draw or discard, any winning tile,
+// any seat/prevalent wind. Rare special wins (last tile, kong replacement,
+// robbing a kong) are left out; they can lift a hand past 8 on their own.
+export function bestCaseFan(concealed, revealedSets, flowers = []) {
+  const melded = revealedSets.flat()
+  if (!scoreHand({ concealed, melded, flowers, ctx: {} }).complete) return null
+  // The winning tile can come from the concealed tiles, or complete a revealed
+  // set (which then counts as concealed, like the review screen scores it).
+  const options = [{ concealed, melded, tiles: new Set(concealed) }]
+  revealedSets.forEach((set, i) => options.push({
+    concealed: [...concealed, ...set],
+    melded: revealedSets.filter((_, j) => j !== i).flat(),
+    tiles: new Set(set),
+  }))
+  const winds = ['e', 's', 'w', 'n']
+  let best = 0
+  for (const o of options) {
+    for (const winningTile of o.tiles) {
+      for (const winType of ['selfdraw', 'discard']) {
+        for (const seatWind of winds) {
+          for (const prevalentWind of winds) {
+            const r = scoreHand({ concealed: o.concealed, melded: o.melded, flowers, ctx: { winType, winningTile, seatWind, prevalentWind } })
+            if (r.complete && r.fanTotal > best) best = r.fanTotal
+          }
+        }
+      }
+    }
+  }
+  return best
 }

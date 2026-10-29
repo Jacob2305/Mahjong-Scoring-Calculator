@@ -105,9 +105,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const backoff = (attempt) => [1000, 3000][attempt] + Math.random() * 500
 
 // One request to one model. Throws RecognitionError; `.transient` means a retry
-// (or a different model) may well succeed.
+// (or a different model) may well succeed. `.status` / `.detail` record what
+// Google actually answered, for the per-attempt log.
 async function attemptOnce({ apiKey, model, body }) {
-  const transient = (msg, kind = 'busy') => Object.assign(new RecognitionError(msg, kind), { transient: true })
+  const transient = (msg, kind = 'busy', extra = {}) =>
+    Object.assign(new RecognitionError(msg, kind), { transient: true }, extra)
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   let res
@@ -122,14 +124,17 @@ async function attemptOnce({ apiKey, model, body }) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new RecognitionError('No connection. Scanning needs internet.', 'network')
     }
-    throw transient(err.name === 'AbortError' ? 'The scanner took too long to answer.' : 'Could not reach the scanner.')
+    throw err.name === 'AbortError'
+      ? transient('The scanner took too long to answer.', 'busy', { status: 'timeout' })
+      : transient('Could not reach the scanner.', 'busy', { status: 'network', detail: err.message })
   } finally {
     clearTimeout(timer)
   }
 
   let data = {}
   try { data = await res.json() } catch { /* non-JSON error */ }
-  if (TRANSIENT.has(res.status)) throw transient(`HTTP ${res.status}`, res.status === 429 ? 'quota' : 'busy')
+  const http = { status: res.status, detail: data.error?.message || '' }
+  if (TRANSIENT.has(res.status)) throw transient(`HTTP ${res.status}`, res.status === 429 ? 'quota' : 'busy', http)
   if (res.status === 400 || res.status === 401 || res.status === 403) {
     const msg = data.error?.message || ''
     if (/api key|permission|referer|unauthor/i.test(msg) || res.status !== 400) {
@@ -137,8 +142,8 @@ async function attemptOnce({ apiKey, model, body }) {
     }
     throw new RecognitionError(`Scan request rejected: ${msg || res.status}`, 'other')
   }
-  if (res.status === 404) throw transient(`Model ${model} not available`, 'other')
-  if (!res.ok) throw transient(`HTTP ${res.status}`, 'other')
+  if (res.status === 404) throw transient(`Model ${model} not available`, 'other', http)
+  if (!res.ok) throw transient(`HTTP ${res.status}`, 'other', http)
 
   const cand = data.candidates?.[0]
   if (!cand || data.promptFeedback?.blockReason || cand.finishReason === 'SAFETY') {
@@ -149,7 +154,7 @@ async function attemptOnce({ apiKey, model, body }) {
     return { parsed: JSON.parse(text), data }
   } catch {
     // Truncated or malformed output: usually fine on a second try.
-    throw transient('Could not read the scanner output.', 'bad-output')
+    throw transient('Could not read the scanner output.', 'bad-output', { status: 'bad-output', detail: cand.finishReason || '' })
   }
 }
 
@@ -165,12 +170,17 @@ export async function recognizeHand({ apiKey, imageBase64, mediaType = 'image/jp
 
   let last
   let attempts = 0
+  // One row per request: what Google answered and how long it took.
+  const log = []
   for (const [mi, model] of models.entries()) {
     if (mi > 0) onStatus('Trying a backup model…')
     for (let attempt = 0; attempt < ATTEMPTS_PER_MODEL; attempt++) {
       attempts++
+      const t0 = Date.now()
       try {
         const { parsed, data } = await attemptOnce({ apiKey, model, body })
+        log.push({ model, status: 200, kind: 'ok', message: '', ms: Date.now() - t0 })
+        printLog(log)
         const layout = LAYOUTS.includes(parsed.layout) ? parsed.layout : 'single'
         const tiles = (parsed.tiles || []).map((t, i) => ({
           id: TILE_IDS.includes(t.id) ? t.id : 'unknown',
@@ -188,9 +198,14 @@ export async function recognizeHand({ apiKey, imageBase64, mediaType = 'image/jp
           attempts,
           usage: data.usageMetadata,
           ms: Date.now() - started,
+          log,
         }
       } catch (err) {
-        if (!err.transient) throw err
+        log.push({ model, status: err.status ?? '?', kind: err.kind, message: err.detail || err.message, ms: Date.now() - t0 })
+        if (!err.transient) {
+          printLog(log)
+          throw Object.assign(err, { log })
+        }
         last = err
         if (err.message.startsWith('Model ')) break // model gone: skip straight to the next
         if (attempt < ATTEMPTS_PER_MODEL - 1) {
@@ -200,10 +215,37 @@ export async function recognizeHand({ apiKey, imageBase64, mediaType = 'image/jp
       }
     }
   }
-  throw new RecognitionError(
-    last?.kind === 'bad-output'
-      ? 'Could not read the scanner output. Try another photo.'
-      : "Google's scanner is overloaded right now. Try again in a minute.",
-    last?.kind === 'bad-output' ? 'bad-output' : 'busy',
-  )
+  printLog(log)
+  throw Object.assign(new RecognitionError(failureMessage(log), last?.kind === 'bad-output' ? 'bad-output' : 'busy'), { log })
+}
+
+// Name the cause that dominated the failed attempts instead of a generic "overloaded".
+function failureMessage(log) {
+  const count = (pred) => log.filter(pred).length
+  const quota = count((r) => r.status === 429)
+  const busy = count((r) => [500, 502, 503, 504].includes(r.status))
+  const slow = count((r) => r.status === 'timeout')
+  const bad = count((r) => r.status === 'bad-output')
+  const top = Math.max(quota, busy, slow, bad)
+  if (top === 0) return 'Could not reach the scanner. Try again in a minute.'
+  if (quota === top) return 'The free scan limit for this site was reached. Try again in a minute, or tomorrow if it keeps happening.'
+  if (busy === top) return "Google's servers are busy right now. Try again in a minute."
+  if (slow === top) return 'The scanner took too long to answer. Try again, or a photo with fewer tiles.'
+  return 'Could not read the scanner output. Try another photo.'
+}
+
+// "3.8-flash: 503 ×3 · 2.5-flash: 200"
+export function summarizeLog(log = []) {
+  const groups = []
+  for (const r of log) {
+    const name = r.model.replace(/^gemini-/, '')
+    const g = groups.at(-1)
+    if (g && g.name === name && g.status === r.status) g.n++
+    else groups.push({ name, status: r.status, n: 1 })
+  }
+  return groups.map((g) => `${g.name}: ${g.status}${g.n > 1 ? ` ×${g.n}` : ''}`).join(' · ')
+}
+
+function printLog(log) {
+  if (typeof console.table === 'function' && typeof window !== 'undefined') console.table(log)
 }

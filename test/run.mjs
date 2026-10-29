@@ -1,4 +1,5 @@
 import { scoreHand } from '../src/engine/scorer.js'
+import { groupSets } from '../src/engine/groupSets.js'
 
 let pass = 0, fail = 0
 function check(name, cond, extra = '') {
@@ -126,6 +127,26 @@ const ids = (r) => r.fans.map((f) => f.id)
   console.log('[11] pair wait:', ids(r).join(', '))
   check('has pairWait', ids(r).includes('pairWait'))
   check('discard-on-pair keeps fourConcealedPungs', ids(r).includes('fourConcealedPungs'))
+}
+
+// Melded Hand (全求人): all four sets revealed, won by discard on the pair.
+{
+  const melded = ['m1', 'm2', 'm3', 's2', 's3', 's4', 'p4', 'p5', 'p6', 'm7', 'm8', 'm9']
+  const r = scoreHand({ concealed: ['p9', 'p9'], melded, ctx: { winType: 'discard', winningTile: 'p9' } })
+  check('melded hand by discard', ids(r).includes('meldedHand'))
+  check('melded hand does not also count single wait', !ids(r).includes('pairWait'), ids(r).join(','))
+  const s = scoreHand({ concealed: ['p9', 'p9'], melded, ctx: { winType: 'selfdraw', winningTile: 'p9' } })
+  check('self-draw is not a melded hand', !ids(s).includes('meldedHand'))
+}
+
+// Set brackets on the home screen.
+{
+  const show = (ids) => groupSets(ids).map((u) => u.map((i) => ids[i]).join(' ')).join(' | ')
+  check('chows and loose pair', show(['p9', 'm3', 'm1', 'm2', 'p9']) === 'm1 m2 m3 | p9 | p9', show(['p9', 'm3', 'm1', 'm2', 'p9']))
+  check('kong stays whole', show(['dr', 'dr', 'dr', 'dr', 'we', 'we', 'we']) === 'we we we | dr dr dr dr')
+  check('two chows before a loose pair', show(['m2', 'm3', 'm4', 'm2', 'm3', 'm4', 'm5', 'm5']) === 'm2 m3 m4 | m2 m3 m4 | m5 | m5')
+  const ids = ['s5', 'm1', 's5', 's5']
+  check('indices cover every tile once', groupSets(ids).flat().sort().join() === '0,1,2,3')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

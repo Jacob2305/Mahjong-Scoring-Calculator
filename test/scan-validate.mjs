@@ -1,4 +1,4 @@
-import { validateScan, validateRevealed, isSet } from '../src/scan/validate.js'
+import { validateScan, validateRevealed, isSet, bestCaseFan } from '../src/scan/validate.js'
 
 let pass = 0, fail = 0
 function check(name, cond, extra = '') {
@@ -45,6 +45,15 @@ check('honour run is not a set', !isSet(['we', 'ws', 'ww']))
 check('pair is not a set', !isSet(['m9', 'm9']))
 check('revealed sets: no warning', validateRevealed([['dr', 'dr', 'dr'], ['s1', 's2', 's3']]).length === 0)
 check('loose revealed tile warns', validateRevealed([['dr', 'dr', 'dr'], ['m9']]).length === 1)
+
+// False-win check before the win conditions are asked.
+{
+  const broken = ['m1', 'm2', 'm4', 'm7', 'm8', 'm9', 's2', 's3', 's4', 'p4', 'p5', 'p6', 'p9', 'p9']
+  check('not a winning hand → null', bestCaseFan(broken, []) === null)
+  check('plain hand can reach 8 in the best case', bestCaseFan(hand14, []) >= 8)
+  const pungs = bestCaseFan(['m2', 'm2', 'm2', 's4', 's4', 's4', 'p6', 'p6', 'p6', 'm9', 'm9'], [['dr', 'dr', 'dr']])
+  check('big hand scores high', pungs >= 8, pungs)
+}
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

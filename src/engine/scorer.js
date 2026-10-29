@@ -308,6 +308,11 @@ function computeTransfers(winType, handValue) {
   return { winType, discarder, others, winnerTotal: discarder + others * 2 }
 }
 
+// House rule for a false win declaration: the declarer pays each other player
+// this much. Under 8 fan = a complete hand that isn't worth enough;
+// not winning = the tiles don't form a winning hand at all.
+export const FALSE_WIN_PENALTY = { underEight: 10, notWinning: 20 }
+
 // Quick completeness check for enabling the Calculate button.
 export function isWinningHand(concealed, melded, flowers = []) {
   return scoreHand({ concealed, melded, flowers, ctx: {} }).complete

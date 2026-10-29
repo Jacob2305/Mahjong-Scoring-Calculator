@@ -19,6 +19,9 @@ export const EXCLUSIONS = {
   allTerminals: ['allPungs', 'pungTerminalsHonors', 'noHonors', 'allTerminalsAndHonors', 'outsideHand'],
   allTerminalsAndHonors: ['allPungs', 'outsideHand', 'pungTerminalsHonors'],
 
+  // Melded Hand is always won on the pair, so it already includes the single wait.
+  meldedHand: ['pairWait'],
+
   fourConcealedPungs: ['threeConcealedPungs', 'twoConcealedPungs', 'allPungs'],
   threeConcealedPungs: ['twoConcealedPungs'],
 

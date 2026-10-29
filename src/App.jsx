@@ -61,6 +61,17 @@ export default function App() {
     else setMelded((a) => a.filter((_, i) => i !== idx))
   }
 
+  // Drag-and-drop between the boxes: move these tiles (indices into `from`).
+  function moveTiles(from, idxs, to) {
+    const src = from === 'concealed' ? concealed : melded
+    const moving = idxs.map((i) => src[i])
+    const keep = (a) => a.filter((_, i) => !idxs.includes(i))
+    if (from === 'concealed') setConcealed(keep)
+    else setMelded(keep)
+    if (to === 'concealed') setConcealed((a) => [...a, ...moving])
+    else setMelded((a) => [...a, ...moving])
+  }
+
   function clearAll() {
     setConcealed([]); setMelded([]); setFlowers([])
   }
@@ -112,6 +123,7 @@ export default function App() {
             activeZone={zone}
             onSelectZone={setZone}
             onRemove={removeTile}
+            onMove={moveTiles}
           />
 
           {flowers.length > 0 && (
@@ -125,11 +137,20 @@ export default function App() {
             </div>
           )}
 
-          {/* Status row with the compact winning-tile slot in the middle */}
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="text-ivory/70 shrink-0">
-              <span className="font-bold text-ivory tabular-nums">{tileCount}</span> / 14 tiles
-            </span>
+          {/* Status row: tile count, the winning-tile slot, and the main Scan button */}
+          <div className="flex items-center gap-3 text-sm">
+            <div className="shrink-0 leading-tight">
+              <div className="text-ivory/70">
+                <span className="font-bold text-ivory tabular-nums">{tileCount}</span> / 14 tiles
+              </div>
+              {result.complete ? (
+                <div className="text-emerald-400 text-xs font-semibold">✓ winning shape</div>
+              ) : over ? (
+                <div className="text-amber-400 text-xs">kongs only</div>
+              ) : (
+                <div className="text-ivory/40 text-xs">{Math.max(0, 14 - tileCount)} to go</div>
+              )}
+            </div>
             <WinningSlot
               tile={ctx.winningTile}
               valid={!!winningTile}
@@ -137,24 +158,20 @@ export default function App() {
               onToggle={() => setPicking((p) => !p)}
               onClear={() => { setCtx((c) => ({ ...c, winningTile: null })); setPicking(false) }}
             />
-            <span className="shrink-0 text-right">
-              {result.complete ? (
-                <span className="text-emerald-400 text-xs font-semibold">✓ winning shape</span>
-              ) : over ? (
-                <span className="text-amber-400 text-xs">kongs only</span>
-              ) : (
-                <span className="text-ivory/40 text-xs">{Math.max(0, 14 - tileCount)} to go</span>
-              )}
-            </span>
+            <ScanButton ctx={ctx} onCommit={applyScan} variant="big" />
           </div>
 
-          {/* Tile picker — kept right under the hand for easy reach */}
-          <div>
-            <div className={`text-sm uppercase tracking-wide mb-2 ${picking ? 'text-gold animate-pulse' : 'text-gold/80'}`}>
-              {picking ? 'Tap the tile you won on' : 'Tap to add tiles'}
-            </div>
-            <TilePicker counts={counts} onAdd={addTile} picking={picking} />
-          </div>
+          <TilePicker
+            counts={counts}
+            onAdd={addTile}
+            picking={picking}
+            tabbed
+            title={
+              <span className={`text-sm uppercase tracking-wide ${picking ? 'text-gold animate-pulse' : 'text-gold/80'}`}>
+                {picking ? 'Tap the tile you won on' : 'Tap to add tiles'}
+              </span>
+            }
+          />
 
           {/* Game context moved to the bottom */}
           <GameContext ctx={ctx} onChange={setCtx} />
@@ -204,7 +221,8 @@ function AboutModal({ onClose }) {
             <p className="font-semibold text-ivory mb-1">How to use</p>
             <ol className="list-decimal pl-5 space-y-1">
               <li>Tap the <b>Concealed 暗</b> or <b>Melded 明</b> box to make it active — it lights up gold.</li>
-              <li>Tap tiles below to drop them into the active box.</li>
+              <li>Pick a suit in the bar, then tap tiles to drop them into the active box.</li>
+              <li>Sets are bracketed. Tap a tile to remove it; drag a tile or set to move it to the other box.</li>
               <li>Four identical tiles in a box are read as a <b>kong</b> (14 + kongs tiles).</li>
               <li>Set the seat/prevalent winds, win type and your wait, then tap <b>Calculate Score</b>.</li>
             </ol>
