@@ -40,7 +40,7 @@ revealed (right/bottom). Then the tiles replace the hand.
 - Retraining: label more photos in Roboflow, train in Colab (Ultralytics YOLO,
   `fliplr=0`), export to ONNX at 640, and replace `public/models/mahjong-tiles.onnx`.
   If the class list changes, update `MODEL_CLASSES` in `detect.js`.
-- Training data: [Mahjong dataset by Jon Chan](https://universe.roboflow.com/) on
+- Training data: [Mahjong dataset by Jon Chan](https://universe.roboflow.com/jon-chan-gnsoa/mahjong-baq4s) on
   Roboflow Universe, CC BY 4.0.
 
 ### Gemini backup (optional)
