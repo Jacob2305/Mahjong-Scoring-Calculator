@@ -154,6 +154,12 @@ const ids = (r) => r.fans.map((f) => f.id)
   const twoKongs = scoreHand({ concealed: ['m2', 'm3', 'm4', 'p6', 'p7', 'p8', 'p2', 'p2'], melded: ['s5', 's5', 's5', 's5', 'dr', 'dr', 'dr', 'dr'], ctx: { winType: 'discard' } })
   const twoConcKongs = scoreHand({ concealed: ['s5', 's5', 's5', 's5', 'dr', 'dr', 'dr', 'dr', 'm2', 'm3', 'm4', 'p6', 'p7', 'p8', 'p2', 'p2'], ctx: { winType: 'discard' } })
   check('Two Concealed Kongs 8', fan(twoConcKongs, 'twoConcealedKongs')?.total === 8 && !fan(twoConcKongs, 'concealedKong'), ids(twoConcKongs).join(','))
+  const ms = scoreHand({ concealed: ['m1', 'm2', 'm3', 'm1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'we', 'we'], ctx: { winType: 'discard' } })
+  check('Mixed Straight counts once with a repeated chow', fan(ms, 'mixedStraight')?.count === 1 && ms.fanTotal === 11, `${ms.fanTotal} ${ids(ms).join(',')}`)
+  const termPungs = scoreHand({ concealed: ['m1', 'm1', 'm1', 's9', 's9', 's9', 'p2', 'p3', 'p4', 'm4', 'm5', 'm6', 'p7', 'p7'], ctx: { winType: 'discard' } })
+  check('Pung of Terminals counted for each 1/9 pung', fan(termPungs, 'pungTerminalsHonors')?.count === 2, ids(termPungs).join(','))
+  const triple = scoreHand({ concealed: ['m5', 'm5', 'm5', 's5', 's5', 's5', 'p5', 'p5', 'p5', 'm1', 'm2', 'm3', 'we', 'we'], ctx: { winType: 'discard' } })
+  check('Triple Pung 16', fan(triple, 'triplePung')?.total === 16, ids(triple).join(','))
   check('Two Melded Kongs 4 (instead of 2× Melded Kong)', fan(twoKongs, 'twoMeldedKongs')?.total === 4 && !fan(twoKongs, 'meldedKong'), ids(twoKongs).join(','))
 }
 
